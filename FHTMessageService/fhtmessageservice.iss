@@ -10,7 +10,7 @@
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId=30A7E70E-65E4-45C2-8746-07AE5701947B
+; AppId=9176c70e-0bab-4cd7-8cb4-3c8e5a7d7811
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -24,6 +24,7 @@ DisableDirPage=yes
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputBaseFilename=FHTMessageServiceSetup
+SetupIconFile=FhtMessageService.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -60,7 +61,8 @@ Source: "C:\FHTdeploy\FHTMessageService\FHTMessageService.exe"; DestDir: "{app}"
 Source: "C:\FHTdeploy\FHTMessageService\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [run]
-Filename: {sys}\sc.exe; Parameters: "create FHTMessageService start= delayed-auto binPath= ""{app}\FHTMessageService.exe""" ; Flags: runhidden 
+Filename: {sys}\sc.exe; Parameters: "create FHTMessageService displayname= ""FHT Message Service"" start= delayed-auto binPath= ""{app}\FHTMessageService.exe""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "description FHTMessageService ""FHT to EMR message service""" ; Flags: runhidden
 Filename: {sys}\sc.exe; Parameters: "failure FHTMessageService actions= restart/180000/restart/180000/restart/180000 reset= 86400" ; Flags: runhidden
 Filename: {sys}\sc.exe; Parameters: "start FHTMessageService" ; Flags: runhidden
 
