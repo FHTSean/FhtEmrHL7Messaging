@@ -1,22 +1,25 @@
-﻿using Bps = FhtSharedLibrary.EntityModels.BestPracticeJadeSP2.BPSPatients;
-using MdPath = FhtSharedLibrary.EntityModels.MD3;
+﻿using System.ServiceProcess;
 
-using FHTMessageService.Models;
-using FhtSharedLibrary.EntityModels.FHTMedicalData;
-using FhtSharedLibrary.SharedFunctions;
-using FhtSharedLibrary.ViewModels;
-using HL7.Dotnetcore;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Reflection;
-using Microsoft.Extensions.Configuration;
 using FHTMessageService.Client;
 using FHTMessageService.Messages;
-using System.ServiceProcess;
-using System.Threading;
+using FHTMessageService.Models;
+
+using FhtSharedLibrary.SharedFunctions;
+using FhtSharedLibrary.ViewModels;
+
+using HL7.Dotnetcore;
+
+using Microsoft.Extensions.Configuration;
+
+using Bps = FhtSharedLibrary.EntityModels.BestPracticeJadeSP2.BPSPatients;
+using MdPath = FhtSharedLibrary.EntityModels.MD3;
 
 namespace FHTMessageService;
 
+/// <summary>
+/// <see cref="ServiceBase"/> for the FHT message service.
+/// Used for installing the application as a service.
+/// </summary>
 public class MessageService : ServiceBase
 {
     private static bool applicationIsRunning = true;
@@ -25,16 +28,25 @@ public class MessageService : ServiceBase
     private IConfigurationRoot localConfig;
     private MessageServiceConfigModel remoteConfig;
 
+    /// <summary>
+    /// Start the message service manually.
+    /// Used when not running as a service, i.e. from command line.
+    /// </summary>
     public void StartMessageService()
     {
         OnStart(Array.Empty<string>());
     }
 
+    /// <summary>
+    /// Stop the message service manually.
+    /// Used when not running as a service, i.e. from command line.
+    /// </summary>
     public void StopMessageService()
     {
         OnStop();
     }
 
+    /// <inheritdoc/>
     protected override void OnStart(string[] args)
     {
         applicationIsRunning = true;
@@ -45,21 +57,27 @@ public class MessageService : ServiceBase
         }.Start();
     }
 
+    /// <inheritdoc/>
     protected override void OnStop()
     {
         applicationIsRunning = false;
     }
 
+    /// <inheritdoc/>
     protected override void OnPause()
     {
         applicationIsPaused = true;
     }
 
+    /// <inheritdoc/>
     protected override void OnContinue()
     {
         applicationIsPaused = true;
     }
 
+    /// <summary>
+    /// Run the message service as a loop, while the application is running.
+    /// </summary>
     private async Task StartService()
     {
         Console.WriteLine("Starting message service");
@@ -93,6 +111,10 @@ public class MessageService : ServiceBase
         }
     }
 
+    /// <summary>
+    /// Run an iteration of the message service.
+    /// Checks for messages and saves them as .hl7 files.
+    /// </summary>
     private async Task RunService()
     {
         // Create remote api client
@@ -186,6 +208,9 @@ public class MessageService : ServiceBase
         }
     }
 
+    /// <summary>
+    /// Get the message directory from the EMR database.
+    /// </summary>
     private string GetMessageDir()
     {
         // Check override for message dir

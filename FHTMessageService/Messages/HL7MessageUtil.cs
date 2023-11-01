@@ -6,6 +6,9 @@ using System.Reflection;
 
 namespace FHTMessageService.Messages;
 
+/// <summary>
+/// Utility for creating HL7 <see cref="Message"/> objects from FHT message models.
+/// </summary>
 public static class HL7MessageUtil
 {
     public const string SoftwareProductName = "Future Health Today";
@@ -20,6 +23,11 @@ public static class HL7MessageUtil
 
     public const string FilenamePrefix = "fht";
 
+    /// <summary>
+    /// Create an HL7 <see cref="Message"/> from an FHT message model.
+    /// </summary>
+    /// <param name="messageModel">The FHT message model to convert to HL7.</param>
+    /// <returns>The created HL7 <see cref="Message"/>.</returns>
     public static Message CreateHL7Message(ResultMessageModel messageModel)
     {
         Assembly application = Assembly.GetExecutingAssembly();
@@ -140,11 +148,19 @@ public static class HL7MessageUtil
         return message;
     }
 
+    /// <summary>
+    /// Get a unique filename from an FHT message model.
+    /// </summary>
     public static string CreateFilenameFromMessage(ResultMessageModel messageModel)
     {
         return $"{FilenamePrefix}_{messageModel.Patient.PatientId}_{messageModel.Observation.ObservationIdentifier}_{DateTime.Now.Ticks}.hl7";
     }
 
+    /// <summary>
+    /// Write an HL7 <see cref="Message"/> to a file.
+    /// </summary>
+    /// <param name="message">The message to write to a file.</param>
+    /// <param name="messagePath">The filepath for the HL7 file.</param>
     public static void WriteHL7Message(Message message, string messagePath)
     {
         // Create HL7 message
