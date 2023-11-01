@@ -143,7 +143,7 @@ public class MessageService : ServiceBase
 
         // Parse remote config
         LoginInfo remoteLoginInfo = new(userName, password);
-        UserInfo remoteUserInfo = await remoteApiClient.PostJson<UserInfo>("login", remoteLoginInfo);
+        UserInfo remoteUserInfo = await remoteApiClient.PostJson<UserInfo, LoginInfo>("login", remoteLoginInfo);
         if (remoteUserInfo != null)
         {
             Console.WriteLine($"Login successful: {remoteUserInfo.UserName} (Account ID: {remoteUserInfo.AccountId})");
