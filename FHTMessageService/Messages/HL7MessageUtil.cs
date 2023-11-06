@@ -1,7 +1,10 @@
-﻿using FhtSharedLibrary.ViewModels;
+﻿using FHTMessageService.Models;
+
+using FhtSharedLibrary.ViewModels;
 
 using HL7.Dotnetcore;
 
+using System.Collections.Immutable;
 using System.Reflection;
 
 namespace FHTMessageService.Messages;
@@ -22,6 +25,15 @@ public static class HL7MessageUtil
     public const string MessageCharacterSet = "UNICODE UTF-8";
 
     public const string FilenamePrefix = "fht";
+
+    private static readonly ImmutableHashSet<string> prefixes = new HashSet<string>()
+    {
+        "Dr",
+        "Mr",
+        "Ms",
+        "Mrs",
+        "Mdm"
+    }.ToImmutableHashSet();
 
     /// <summary>
     /// Create an HL7 <see cref="Message"/> from an FHT message model.
@@ -55,10 +67,10 @@ public static class HL7MessageUtil
         patientSegment.AddEmptyField(); // Patient ID
         patientSegment.AddNewField(messageModel.Patient.PatientId ?? ""); // Patient identifier list
         patientSegment.AddEmptyField(); // Alternate patient ID
-        Field patientName = new(encoding);
-        patientName.AddNewComponent(new Component(messageModel.Patient.PatientFamilyName ?? "", encoding));
-        patientName.AddNewComponent(new Component(messageModel.Patient.PatientGivenName ?? "", encoding));
-        patientSegment.AddNewField(patientName); // Patient name
+        Field patientNameField = new(encoding);
+        patientNameField.AddNewComponent(new Component(messageModel.Patient.PatientFamilyName ?? "", encoding));
+        patientNameField.AddNewComponent(new Component(messageModel.Patient.PatientGivenName ?? "", encoding));
+        patientSegment.AddNewField(patientNameField); // Patient name
         patientSegment.AddEmptyField(); // Mother's maiden name
         patientSegment.AddNewField(MessageHelper.LongDateWithFractionOfSecond(messageModel.Patient.PatientDob)); // Date/time of birth
         patientSegment.AddNewField(messageModel.Patient.PatientSex ?? ""); // Administrative sex
@@ -75,9 +87,17 @@ public static class HL7MessageUtil
         patientVisitSegment.AddEmptyField(); // Admission type
         patientVisitSegment.AddEmptyField(); // Preadmit number
         patientVisitSegment.AddEmptyField(); // Prior patient location
-        patientVisitSegment.AddNewField(messageModel.PatientVisit.PatientVisitDoctor ?? ""); // Attending doctor
-        patientVisitSegment.AddNewField(messageModel.PatientVisit.PatientVisitDoctor ?? ""); // Referring doctor
-        patientVisitSegment.AddNewField(messageModel.PatientVisit.PatientVisitDoctor ?? ""); // Consulting doctor
+        Field doctorNameField = new(encoding);
+        DoctorName doctorName = ParseDoctorName(messageModel.PatientVisit.PatientVisitDoctor);
+        doctorNameField.AddNewComponent(new Component(encoding)); // ID number
+        doctorNameField.AddNewComponent(new Component(doctorName.FamilyName, encoding)); // Family name
+        doctorNameField.AddNewComponent(new Component(doctorName.GivenName, encoding)); // Given name
+        doctorNameField.AddNewComponent(new Component(doctorName.OtherNames, encoding)); // Further given names
+        doctorNameField.AddNewComponent(new Component(encoding)); // Suffix
+        doctorNameField.AddNewComponent(new Component(doctorName.Prefix, encoding)); // Prefix
+        patientVisitSegment.AddNewField(doctorNameField); // Attending doctor
+        patientVisitSegment.AddEmptyField(); // Referring doctor
+        patientVisitSegment.AddEmptyField(); // Consulting doctor
         message.AddNewSegment(patientVisitSegment);
 
         // Add observation request
@@ -113,11 +133,11 @@ public static class HL7MessageUtil
         Segment observationResultSegment = new("OBX", encoding);
         observationResultSegment.AddEmptyField(); // Set ID
         observationResultSegment.AddNewField("NM"); // Value type - Numeric
-        Field observationIndentifier = new(encoding);
-        observationIndentifier.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifier ?? "", encoding)); // Observation identifier
-        observationIndentifier.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifierText ?? "", encoding)); // Observation identifier text
-        observationIndentifier.AddNewComponent(new Component(messageModel.Observation.ObservationCodingSystem.ToHL7CodingSystem(), encoding)); // Name of coding system - Local general code
-        observationResultSegment.AddNewField(observationIndentifier); // Observation identifier
+        Field observationIndentifierField = new(encoding);
+        observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifier ?? "", encoding)); // Observation identifier
+        observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifierText ?? "", encoding)); // Observation identifier text
+        observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationCodingSystem.ToHL7CodingSystem(), encoding)); // Name of coding system - Local general code
+        observationResultSegment.AddNewField(observationIndentifierField); // Observation identifier
         observationResultSegment.AddEmptyField(); // Observation sub-identifier
         observationResultSegment.AddNewField(messageModel.Observation.ObservationValue ?? ""); // Observation value
         observationResultSegment.AddNewField(messageModel.Observation.ObservationUnits ?? ""); // Units
@@ -139,13 +159,58 @@ public static class HL7MessageUtil
         // Add clinical trial identification
         Segment clinicalTrialIdentificationSegment = new("CTI", encoding);
         clinicalTrialIdentificationSegment.AddNewField(messageModel.ClinicalTrial.StudyIdentifier ?? ""); // Sponser study ID
-        Field clinicalTrialStudyPhase = new(encoding);
-        clinicalTrialStudyPhase.AddNewComponent(new Component(messageModel.ClinicalTrial.StudyPhaseIdentifier ?? "", encoding));
-        clinicalTrialStudyPhase.AddNewComponent(new Component(messageModel.ClinicalTrial.StudyPhaseIdentifierText ?? "", encoding));
-        clinicalTrialIdentificationSegment.AddNewField(clinicalTrialStudyPhase); // Study phase identifier
+        Field clinicalTrialStudyPhaseField = new(encoding);
+        clinicalTrialStudyPhaseField.AddNewComponent(new Component(messageModel.ClinicalTrial.StudyPhaseIdentifier ?? "", encoding));
+        clinicalTrialStudyPhaseField.AddNewComponent(new Component(messageModel.ClinicalTrial.StudyPhaseIdentifierText ?? "", encoding));
+        clinicalTrialIdentificationSegment.AddNewField(clinicalTrialStudyPhaseField); // Study phase identifier
         message.AddNewSegment(clinicalTrialIdentificationSegment);
 
         return message;
+    }
+
+    private static DoctorName ParseDoctorName(string name)
+    {
+        string prefix = "";
+        string givenName = "";
+        string otherNames = "";
+        string familyName = "";
+
+        int index = 0;
+        string[] nameComponents = name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        // Prefix
+        if (nameComponents.Length > index)
+        {
+            string prefixComponent = nameComponents[index];
+            if (prefixes.Any(x => prefixComponent.StartsWith(x, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                prefix = prefixComponent;
+                ++index;
+            }
+        }
+
+        // Given name
+        if (nameComponents.Length > index)
+        {
+            givenName = nameComponents[index];
+            ++index;
+        }
+
+        // Other names
+        if (nameComponents.Length - 1 > index)
+        {
+            string[] otherNamesComponents = nameComponents[index..(nameComponents.Length - 1)];
+            otherNames = string.Join(' ', otherNamesComponents);
+            index += otherNamesComponents.Length;
+        }
+
+        // Family name
+        if (nameComponents.Length > index)
+        {
+            familyName = nameComponents[index];
+            ++index;
+        }
+
+        return new(familyName, givenName, otherNames, prefix);
     }
 
     /// <summary>
