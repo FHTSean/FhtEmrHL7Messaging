@@ -218,7 +218,9 @@ public static class HL7MessageUtil
     /// </summary>
     public static string CreateFilenameFromMessage(ResultMessageModel messageModel)
     {
-        return $"{FilenamePrefix}_{messageModel.Patient.PatientId}_{messageModel.Observation.ObservationIdentifierText}_{DateTime.Now.Ticks}.hl7";
+        return $"{FilenamePrefix}_{messageModel.Patient.PatientId}_{messageModel.Observation.ObservationIdentifierText}_{DateTime.Now.Ticks}.hl7"
+            .Replace(" ", "")
+            .ToLower();
     }
 
     /// <summary>
