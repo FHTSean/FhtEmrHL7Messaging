@@ -151,7 +151,7 @@ public class MessageService : ServiceBase
         string[] configPassword = clientConfigLines[2].Split(new string[] { "Password=" }, 2, StringSplitOptions.None);
         string password = configPassword.Length == 2 ? cryptoDecrypt.Decrypt(configPassword[1]) : null;
         Log.Write("Username: ", LogFormat.Bold);
-        Log.Write(username, LogFormat.BrightMagenta);
+        Log.Write(username);
         Log.Write(", ");
         Log.Write("Password: ", LogFormat.Bold);
         Log.Write('('); Log.Write(password, LogFormat.Conceal); Log.Write(')');
@@ -165,7 +165,7 @@ public class MessageService : ServiceBase
         {
             Log.WriteLine("Remote login successful", LogFormat.Italic, LogFormat.BrightGreen);
             Log.Write("Username: ", LogFormat.Bold);
-            Log.Write(remoteUserInfo.UserName, LogFormat.BrightMagenta);
+            Log.Write(remoteUserInfo.UserName);
             Log.Write(", ");
             Log.Write("Account ID: ", LogFormat.Bold);
             Log.Write(remoteUserInfo.AccountId);
@@ -246,8 +246,6 @@ public class MessageService : ServiceBase
         // Iterate through each message
         if (messageModels != null && messageModels.Length > 0)
         {
-            Log.WriteLine($"{messageModels.Length} {(messageModels.Length == 1 ? "message" : "messages")} from API");
-
             // Get message path
             Dictionary<string, string> messageDirs = messageModels
                 .Select(x => x.Patient.PatientEmr).Distinct()
@@ -256,15 +254,20 @@ public class MessageService : ServiceBase
             {
                 foreach (string emrSoftware in messageDirs.Keys)
                 {
-                    Log.WriteLine($"Message dir ({emrSoftware}): {messageDirs[emrSoftware]}");
+                    Log.Write($"{emrSoftware} - Message dir: ", LogFormat.Bold);
+                    Log.WriteLine(messageDirs[emrSoftware]);
                 }
             }
             else
             {
-                Log.WriteErrorLine($"Could not find message dir");
+                Log.WriteErrorLine("Could not find message dir");
             }
 
             Log.WriteLine();
+            Log.WriteLine($"{messageModels.Length} {(messageModels.Length == 1 ? "message" : "messages")} from API");
+
+            int wroteMessages = 0;
+            int failedMessages = 0;
             foreach (ResultMessageModel messageModel in messageModels)
             {
                 try
@@ -274,12 +277,24 @@ public class MessageService : ServiceBase
                     string messageFilename = HL7MessageUtil.CreateFilenameFromMessage(messageModel);
                     string messagePath = Path.Join(messageDirs[messageModel.Patient.PatientEmr], messageFilename);
                     HL7MessageUtil.WriteHL7Message(message, messagePath);
-                    Log.WriteLine($"Wrote message: {messagePath}", LogFormat.Italic, LogFormat.Green);
+                    Log.WriteLine(messagePath);
+                    ++wroteMessages;
                 }
                 catch (Exception e)
                 {
                     Log.WriteErrorLine(e);
+                    ++failedMessages;
                 }
+            }
+
+            if (wroteMessages > 0)
+            {
+                Log.WriteLine($"Successfully wrote {wroteMessages} {(wroteMessages == 1 ? "message" : "messages")}", LogFormat.Italic, LogFormat.BrightGreen);
+            }
+
+            if (failedMessages > 0)
+            {
+                Log.WriteLine($"Failed to write {failedMessages} {(failedMessages == 1 ? "message" : "messages")}", LogFormat.Italic, LogFormat.BrightYellow);
             }
         }
         else
@@ -363,7 +378,7 @@ public class MessageService : ServiceBase
             return null;
         }
 
-        Log.WriteLine($"Invalid EMR software '{remoteConfig.EmrSoftware}'");
+        Log.WriteErrorLine($"Invalid EMR software '{remoteConfig.EmrSoftware}'");
         return null;
     }
 }
