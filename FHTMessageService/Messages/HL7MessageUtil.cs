@@ -53,18 +53,18 @@ public static class HL7MessageUtil
         Segment patientSegment = new("PID", encoding);
         patientSegment.AddEmptyField(); // Set ID
         patientSegment.AddEmptyField(); // Patient ID
-        patientSegment.AddNewField(messageModel.Patient.PatientId); // Patient identifier list
+        patientSegment.AddNewField(messageModel.Patient.PatientId ?? ""); // Patient identifier list
         patientSegment.AddEmptyField(); // Alternate patient ID
         Field patientName = new(encoding);
-        patientName.AddNewComponent(new Component(messageModel.Patient.PatientFamilyName, encoding));
-        patientName.AddNewComponent(new Component(messageModel.Patient.PatientGivenName, encoding));
+        patientName.AddNewComponent(new Component(messageModel.Patient.PatientFamilyName ?? "", encoding));
+        patientName.AddNewComponent(new Component(messageModel.Patient.PatientGivenName ?? "", encoding));
         patientSegment.AddNewField(patientName); // Patient name
         patientSegment.AddEmptyField(); // Mother's maiden name
         patientSegment.AddNewField(MessageHelper.LongDateWithFractionOfSecond(messageModel.Patient.PatientDob)); // Date/time of birth
-        patientSegment.AddNewField(messageModel.Patient.PatientSex); // Administrative sex
+        patientSegment.AddNewField(messageModel.Patient.PatientSex ?? ""); // Administrative sex
         patientSegment.AddEmptyField(); // Patient alias
         patientSegment.AddEmptyField(); // Race
-        patientSegment.AddNewField(messageModel.Patient.PatientAddress); // Patient address
+        patientSegment.AddNewField(messageModel.Patient.PatientAddress ?? ""); // Patient address
         message.AddNewSegment(patientSegment);
 
         // Add patient visit
@@ -75,9 +75,9 @@ public static class HL7MessageUtil
         patientVisitSegment.AddEmptyField(); // Admission type
         patientVisitSegment.AddEmptyField(); // Preadmit number
         patientVisitSegment.AddEmptyField(); // Prior patient location
-        patientVisitSegment.AddNewField(messageModel.PatientVisit.PatientVisitDoctor); // Attending doctor
-        patientVisitSegment.AddEmptyField(); // Referring doctor
-        patientVisitSegment.AddEmptyField(); // Consulting doctor
+        patientVisitSegment.AddNewField(messageModel.PatientVisit.PatientVisitDoctor ?? ""); // Attending doctor
+        patientVisitSegment.AddNewField(messageModel.PatientVisit.PatientVisitDoctor ?? ""); // Referring doctor
+        patientVisitSegment.AddNewField(messageModel.PatientVisit.PatientVisitDoctor ?? ""); // Consulting doctor
         message.AddNewSegment(patientVisitSegment);
 
         // Add observation request
@@ -114,15 +114,15 @@ public static class HL7MessageUtil
         observationResultSegment.AddEmptyField(); // Set ID
         observationResultSegment.AddNewField("NM"); // Value type - Numeric
         Field observationIndentifier = new(encoding);
-        observationIndentifier.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifier, encoding)); // Observation identifier
-        observationIndentifier.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifierText, encoding)); // Observation identifier text
+        observationIndentifier.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifier ?? "", encoding)); // Observation identifier
+        observationIndentifier.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifierText ?? "", encoding)); // Observation identifier text
         observationIndentifier.AddNewComponent(new Component(messageModel.Observation.ObservationCodingSystem.ToHL7CodingSystem(), encoding)); // Name of coding system - Local general code
         observationResultSegment.AddNewField(observationIndentifier); // Observation identifier
         observationResultSegment.AddEmptyField(); // Observation sub-identifier
-        observationResultSegment.AddNewField(messageModel.Observation.ObservationValue); // Observation value
-        observationResultSegment.AddNewField(messageModel.Observation.ObservationUnits); // Units
-        observationResultSegment.AddNewField(messageModel.Observation.ObservationReferencesRange); // References range
-        observationResultSegment.AddNewField(messageModel.Observation.ObservationAbnormalFlags); // Abnormal flags
+        observationResultSegment.AddNewField(messageModel.Observation.ObservationValue ?? ""); // Observation value
+        observationResultSegment.AddNewField(messageModel.Observation.ObservationUnits ?? ""); // Units
+        observationResultSegment.AddNewField(messageModel.Observation.ObservationReferencesRange ?? ""); // References range
+        observationResultSegment.AddNewField(messageModel.Observation.ObservationAbnormalFlags ?? ""); // Abnormal flags
         observationResultSegment.AddEmptyField(); // Probability
         observationResultSegment.AddEmptyField(); // Nature of abnormal test
         observationResultSegment.AddNewField("F"); // Observation result status - Final results
@@ -138,10 +138,10 @@ public static class HL7MessageUtil
 
         // Add clinical trial identification
         Segment clinicalTrialIdentificationSegment = new("CTI", encoding);
-        clinicalTrialIdentificationSegment.AddNewField(messageModel.ClinicalTrial.StudyIdentifier); // Sponser study ID
+        clinicalTrialIdentificationSegment.AddNewField(messageModel.ClinicalTrial.StudyIdentifier ?? ""); // Sponser study ID
         Field clinicalTrialStudyPhase = new(encoding);
-        clinicalTrialStudyPhase.AddNewComponent(new Component(messageModel.ClinicalTrial.StudyPhaseIdentifier, encoding));
-        clinicalTrialStudyPhase.AddNewComponent(new Component(messageModel.ClinicalTrial.StudyPhaseIdentifierText, encoding));
+        clinicalTrialStudyPhase.AddNewComponent(new Component(messageModel.ClinicalTrial.StudyPhaseIdentifier ?? "", encoding));
+        clinicalTrialStudyPhase.AddNewComponent(new Component(messageModel.ClinicalTrial.StudyPhaseIdentifierText ?? "", encoding));
         clinicalTrialIdentificationSegment.AddNewField(clinicalTrialStudyPhase); // Study phase identifier
         message.AddNewSegment(clinicalTrialIdentificationSegment);
 

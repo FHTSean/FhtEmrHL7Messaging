@@ -9,7 +9,7 @@
 		<DebugType>embedded</DebugType>
 		<ProduceReferenceAssembly>False</ProduceReferenceAssembly>
 		<ApplicationIcon>FhtMessageService.ico</ApplicationIcon>
-		<VersionPrefix>1.0.0</VersionPrefix>
+		<VersionPrefix>1.1.0</VersionPrefix>
 	</PropertyGroup>
 
 	<ItemGroup>

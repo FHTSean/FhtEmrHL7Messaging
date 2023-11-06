@@ -1,4 +1,7 @@
-﻿using System.ServiceProcess;
+﻿using System.Net;
+using System.Net.Sockets;
+using System.ServiceProcess;
+using System.Text;
 
 using FHTMessageService.Client;
 using FHTMessageService.Messages;
@@ -27,6 +30,8 @@ public class MessageService : ServiceBase
 
     private IConfigurationRoot localConfig;
     private MessageServiceConfigModel remoteConfig;
+
+    private int serviceDelayMilliseconds = 60000;
 
     /// <summary>
     /// Start the message service manually.
@@ -86,7 +91,7 @@ public class MessageService : ServiceBase
         Console.WriteLine("Local config obtained");
         Console.WriteLine();
 
-        int delay = localConfig.GetValue<int>("DelayMilliseconds");
+        serviceDelayMilliseconds = localConfig.GetValue<int>("DelayMilliseconds");
         while (applicationIsRunning)
         {
             try
@@ -98,11 +103,12 @@ public class MessageService : ServiceBase
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Console.Error.WriteLine(e);
             }
             finally
             {
-                Thread.Sleep(delay);
+                Console.WriteLine($"Service complete, waiting {serviceDelayMilliseconds}ms");
+                Thread.Sleep(serviceDelayMilliseconds);
 
                 Console.WriteLine();
                 Console.WriteLine("---");
@@ -117,7 +123,7 @@ public class MessageService : ServiceBase
     /// </summary>
     private async Task RunService()
     {
-        // Create remote api client
+        // Create remote API client
         string awsUrl = localConfig.GetValue<string>("AwsUrl");
         Console.WriteLine($"Using remote API endpoint: {awsUrl}");
         ApiClient remoteApiClient = new(awsUrl);
@@ -134,84 +140,170 @@ public class MessageService : ServiceBase
         CryptoFunctions cryptoDecrypt = new();
         using StreamReader clientConfigReader = File.OpenText(clientConfigPath);
         string[] clientConfigLines = clientConfigReader.ReadToEnd().Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
-        string[] user = clientConfigLines[1].Split(new string[] { "User=" }, StringSplitOptions.None);
-        string userName = user[1];
-        string[] pwd = clientConfigLines[2].Split(new string[] { "Password=" }, StringSplitOptions.None);
-        string password = cryptoDecrypt.Decrypt(pwd[1]);
-        Console.WriteLine($"Username: '{userName}', Password: '{password}'");
+        string[] configUser = clientConfigLines[1].Split(new string[] { "User=" }, 2, StringSplitOptions.None);
+        string username = configUser.Length == 2 ? configUser[1] : null;
+        string[] configPassword = clientConfigLines[2].Split(new string[] { "Password=" }, 2, StringSplitOptions.None);
+        string password = configPassword.Length == 2 ? cryptoDecrypt.Decrypt(configPassword[1]) : null;
+        Console.WriteLine($"Username: '{username}', Password: '{password}'");
         Console.WriteLine();
 
         // Parse remote config
-        LoginInfo remoteLoginInfo = new(userName, password);
+        LoginInfo remoteLoginInfo = new(username, password);
         UserInfo remoteUserInfo = await remoteApiClient.PostJson<UserInfo, LoginInfo>("login", remoteLoginInfo);
         if (remoteUserInfo != null)
         {
-            Console.WriteLine($"Login successful: {remoteUserInfo.UserName} (Account ID: {remoteUserInfo.AccountId})");
+            Console.WriteLine($"Login successful: '{remoteUserInfo.UserName}' (Account ID: {remoteUserInfo.AccountId})");
             // Set client token
             remoteApiClient.SetToken(remoteUserInfo.Token);
 
             int softwareId = localConfig.GetValue<int>("SoftwareId");
-            // Get config info
+            // Get remote config info
             remoteConfig = await remoteApiClient.GetConfigInfo(remoteUserInfo.AccountId, softwareId);
-            if (remoteConfig != null)
+        }
+        else
+        {
+            Console.Error.WriteLine("Remote login error");
+        }
+
+        if (remoteConfig != null)
+        {
+            // Successfully obtained remote config
+            Console.WriteLine("Remote config obtained");
+        }
+        else
+        {
+            // Use empty config if no config exists
+            Console.WriteLine("Could not find remote config, using default values");
+            remoteConfig = new MessageServiceConfigModel();
+        }
+
+        // Override service delay
+        if (remoteConfig.ServiceDelayMilliseconds.HasValue)
+        {
+            serviceDelayMilliseconds = remoteConfig.ServiceDelayMilliseconds.Value;
+        }
+
+        // Apply BP config connection string from remote config
+        if (remoteConfig.BpDatabaseConnectionString != null)
+        {
+            System.Configuration.ConfigurationManager.AppSettings["BPINSTANCE_ConnectionString"] = remoteConfig.BpDatabaseConnectionString;
+        }
+        else
+        {
+            System.Configuration.ConfigurationManager.AppSettings["BPINSTANCE_ConnectionString"] = localConfig.GetConnectionString("BpDatabaseConnectionString");
+        }
+
+        // Apply MD config connection string from remote config
+        if (remoteConfig.MdDatabaseHcnConnectionString != null)
+        {
+            System.Configuration.ConfigurationManager.AppSettings["MDINSTANCEHCN_ConnectionString"] = remoteConfig.MdDatabaseHcnConnectionString;
+        }
+        else
+        {
+            System.Configuration.ConfigurationManager.AppSettings["MDINSTANCEHCN_ConnectionString"] = localConfig.GetConnectionString("MdDatabaseHcnConnectionString");
+        }
+
+        // Get local API endpoint
+        string localApiEndpoint;
+        if (remoteConfig.FhtWebApiEndpoint != null)
+        {
+            localApiEndpoint = remoteConfig.FhtWebApiEndpoint;
+            Console.WriteLine($"Using local API endpoint from config: {localApiEndpoint}");
+        }
+        else
+        {
+            localApiEndpoint = GetLocalApiEndpoint();
+            Console.WriteLine($"Obtained local API endpoint from UDP: {localApiEndpoint}");
+        }
+
+        // Create local API client
+        ApiClient localApiClient = new(localApiEndpoint);
+
+        // Get message from local API
+        ResultMessageModel[] messageModels = await localApiClient.GetJson<ResultMessageModel[]>("GetUnsentMessages");
+
+        // Iterate through each message
+        if (messageModels != null && messageModels.Length > 0)
+        {
+            Console.WriteLine($"{messageModels.Length} {(messageModels.Length == 1 ? "message" : "messages")} from API");
+
+            // Get message path
+            Dictionary<string, string> messageDirs = messageModels
+                .Select(x => x.Patient.PatientEmr).Distinct()
+                .ToDictionary(x => x, GetMessageDir);
+            if (messageDirs.Any())
             {
-                Console.WriteLine("Remote config obtained");
-                // Apply config connection strings
-                System.Configuration.ConfigurationManager.AppSettings["BPINSTANCE_ConnectionString"] = remoteConfig.BpDatabaseConnectionString;
-                System.Configuration.ConfigurationManager.AppSettings["MDINSTANCEHCN_ConnectionString"] = remoteConfig.MdDatabaseHcnConnectionString;
-
-                // Create local api client
-                Console.WriteLine($"Using local API endpoint: {remoteConfig.FhtWebApiEndpoint}");
-                ApiClient localApiClient = new(remoteConfig.FhtWebApiEndpoint);
-
-                // Get message from local api
-                ResultMessageModel[] messageModels = await localApiClient.GetJson<ResultMessageModel[]>("GetUnsentMessages");
-
-                // Get message path
-                string messageDir = GetMessageDir();
-                Console.WriteLine($"Message dir: {messageDir}");
-                Console.WriteLine();
-
-                // Iterate through each message
-                if (messageModels != null && messageModels.Length > 0)
+                foreach (string emrSoftware in messageDirs.Keys)
                 {
-                    foreach (ResultMessageModel messageModel in messageModels)
-                    {
-                        try
-                        {
-                            // Write message to emr
-                            Message message = HL7MessageUtil.CreateHL7Message(messageModel);
-                            string messageFilename = HL7MessageUtil.CreateFilenameFromMessage(messageModel);
-                            string messagePath = Path.Join(messageDir, messageFilename);
-                            HL7MessageUtil.WriteHL7Message(message, messagePath);
-                            Console.WriteLine($"Wrote message: {messagePath}");
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("No messages to write");
+                    Console.WriteLine($"Message dir ({emrSoftware}): {messageDirs[emrSoftware]}");
                 }
             }
             else
             {
-                Console.WriteLine("Error obtaining remote config");
+                Console.Error.WriteLine($"Could not find message dir");
+            }
+
+            Console.WriteLine();
+            foreach (ResultMessageModel messageModel in messageModels)
+            {
+                try
+                {
+                    // Write message to emr
+                    Message message = HL7MessageUtil.CreateHL7Message(messageModel);
+                    string messageFilename = HL7MessageUtil.CreateFilenameFromMessage(messageModel);
+                    string messagePath = Path.Join(messageDirs[messageModel.Patient.PatientEmr], messageFilename);
+                    HL7MessageUtil.WriteHL7Message(message, messagePath);
+                    Console.WriteLine($"Wrote message: {messagePath}");
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e);
+                }
             }
         }
         else
         {
-            Console.WriteLine("Remote login error");
+            Console.WriteLine("No messages to write");
+        }
+    }
+
+    /// <summary>
+    /// Get the endpoint for the local FHT API using UDP.
+    /// </summary>
+    /// <returns></returns>
+    private string GetLocalApiEndpoint()
+    {
+        try
+        {
+            using UdpClient udpClient = new(localConfig.GetValue<int>("MulticastPort"), AddressFamily.InterNetwork);
+            udpClient.Client.ReceiveTimeout = 20000;
+
+            IPAddress groupAddress = IPAddress.Parse(localConfig.GetValue<string>("MulticastAddress"));
+            // Join group
+            udpClient.JoinMulticastGroup(groupAddress);
+            IPEndPoint webApiDest = new(groupAddress, localConfig.GetValue<int>("MulticastTargetPort"));
+            // Send byte
+            _ = udpClient.Send(new byte[] { 1 }, 1, webApiDest);
+            // Wait for response
+            IPEndPoint endpoint = new(IPAddress.Any, 50);
+            byte[] data = udpClient.Receive(ref endpoint);
+            ASCIIEncoding ASCII = new();
+            string serverName = ASCII.GetString(data);
+            // Get endpoint
+            int localApiPort = localConfig.GetValue<int>("FhtWebApiPort");
+            return $"https://{serverName}:{localApiPort}";
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine(e);
+            return null;
         }
     }
 
     /// <summary>
     /// Get the message directory from the EMR database.
     /// </summary>
-    private string GetMessageDir()
+    private string GetMessageDir(string emrSoftware)
     {
         // Check override for message dir
         if (remoteConfig.MessageOutputDir != null)
@@ -219,12 +311,12 @@ public class MessageService : ServiceBase
             return remoteConfig.MessageOutputDir;
         }
 
-        if (remoteConfig.EmrSoftware == "BestPractice")
+        if (emrSoftware == "BestPractice")
         {
             // Get import path for BP
             using Bps.BPSPatientsContext fhtBpsContext = new();
             Bps.Reportpaths[] reportPaths = fhtBpsContext.Reportpaths
-                .Where(x => x.Recordstatus == 1)
+                .Where(x => x.Recordstatus == 1 && x.Computer.Trim().ToUpper() == Environment.MachineName.Trim().ToUpper())
                 .ToArray();
             if (reportPaths.Length > 0)
             {
@@ -233,7 +325,7 @@ public class MessageService : ServiceBase
 
             return null;
         }
-        else if (remoteConfig.EmrSoftware == "MedicalDirector")
+        else if (emrSoftware == "MedicalDirector")
         {
             // Get import path for MD
             using MdPath.HCN.HCNContext fhtMdContext = new();

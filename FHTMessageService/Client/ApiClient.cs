@@ -5,6 +5,7 @@ using FhtSharedLibrary.ViewModels;
 
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace FHTMessageService.Client;
 
@@ -49,13 +50,13 @@ public class ApiClient
             }
             else
             {
-                Console.WriteLine($"Request error: {requestUri} - {response.ReasonPhrase}");
+                Console.Error.WriteLine($"Request error: {requestUri} - {response.ReasonPhrase}");
                 return default;
             }
         }
         catch (Exception error)
         {
-            Console.WriteLine($"Request error: {error}");
+            Console.Error.WriteLine($"Request error: {error}");
             return default;
         }
     }
@@ -79,13 +80,13 @@ public class ApiClient
             }
             else
             {
-                Console.WriteLine($"Request error: {requestUri} - {response.ReasonPhrase}");
+                Console.Error.WriteLine($"Request error: {requestUri} - {response.ReasonPhrase}");
                 return default;
             }
         }
         catch (Exception error)
         {
-            Console.WriteLine($"Request error: {error}");
+            Console.Error.WriteLine($"Request error: {error}");
             return default;
         }
     }
@@ -116,13 +117,18 @@ public class ApiClient
             }
             else
             {
-                Console.WriteLine($"SystemConfig error: {response.StatusCode} - {response.ReasonPhrase}");
+                Console.Error.WriteLine($"GetConfigInfo error: {response.StatusCode} - {response.ReasonPhrase}");
                 return null;
             }
         }
+        catch (JsonException)
+        {
+            // No config
+            return null;
+        }
         catch (Exception error)
         {
-            Console.WriteLine($"SystemConfig error: {error}");
+            Console.Error.WriteLine($"GetConfigInfo error: {error}");
             return null;
         }
     }

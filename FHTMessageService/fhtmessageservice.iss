@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "FHT Message Service"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.1"
 #define MyAppPublisher "University of Melbourne"
 #define MyAppURL "https://unimelb.edu.au"
 #define MyAppFolder "C:\fht"
