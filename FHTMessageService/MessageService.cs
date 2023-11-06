@@ -4,6 +4,7 @@ using System.ServiceProcess;
 using System.Text;
 
 using FHTMessageService.Client;
+using FHTMessageService.Logging;
 using FHTMessageService.Messages;
 using FHTMessageService.Models;
 
@@ -85,11 +86,11 @@ public class MessageService : ServiceBase
     /// </summary>
     private async Task StartService()
     {
-        Console.WriteLine("Starting message service");
+        Log.WriteLine("Starting message service", LogFormat.Bold, LogFormat.Italic);
         // Parse local config
         localConfig = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build();
-        Console.WriteLine("Local config obtained");
-        Console.WriteLine();
+        Log.WriteLine("Local config obtained", LogFormat.Italic);
+        Log.WriteLine();
 
         serviceDelayMilliseconds = localConfig.GetValue<int>("DelayMilliseconds");
         while (applicationIsRunning)
@@ -103,16 +104,17 @@ public class MessageService : ServiceBase
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine(e);
+                Log.WriteErrorLine(e);
             }
             finally
             {
-                Console.WriteLine($"Service complete, waiting {serviceDelayMilliseconds}ms");
+                Log.WriteLine($"Service complete", LogFormat.Italic);
+                Log.WriteLine($"Waiting {serviceDelayMilliseconds}ms", LogFormat.Bold, LogFormat.Italic);
                 Thread.Sleep(serviceDelayMilliseconds);
 
-                Console.WriteLine();
-                Console.WriteLine("---");
-                Console.WriteLine();
+                Log.WriteLine();
+                Log.WriteLine("---");
+                Log.WriteLine();
             }
         }
     }
@@ -125,17 +127,21 @@ public class MessageService : ServiceBase
     {
         // Create remote API client
         string awsUrl = localConfig.GetValue<string>("AwsUrl");
-        Console.WriteLine($"Using remote API endpoint: {awsUrl}");
+        Log.Write("Using remote API endpoint: ", LogFormat.Bold);
+        Log.WriteLine(awsUrl, LogFormat.BrightCyan);
         ApiClient remoteApiClient = new(awsUrl);
 
         // Get client config path
         string path = "clientconfig.txt";
         string applicationDir = Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory);
-        Console.WriteLine($"Application dir: {applicationDir}");
+        Log.Write("Application dir: ", LogFormat.Bold);
+        Log.WriteLine(applicationDir);
         string parentDir = Path.GetDirectoryName(applicationDir);
-        Console.WriteLine($"Parent dir: {parentDir}");
+        Log.Write("Parent dir: ", LogFormat.Bold);
+        Log.WriteLine(parentDir);
         string clientConfigPath = Path.Combine(parentDir, path);
-        Console.WriteLine($"Client config file path: {clientConfigPath}");
+        Log.Write("Client config file path: ", LogFormat.Bold);
+        Log.WriteLine(clientConfigPath);
         // Parse client config
         CryptoFunctions cryptoDecrypt = new();
         using StreamReader clientConfigReader = File.OpenText(clientConfigPath);
@@ -144,15 +150,26 @@ public class MessageService : ServiceBase
         string username = configUser.Length == 2 ? configUser[1] : null;
         string[] configPassword = clientConfigLines[2].Split(new string[] { "Password=" }, 2, StringSplitOptions.None);
         string password = configPassword.Length == 2 ? cryptoDecrypt.Decrypt(configPassword[1]) : null;
-        Console.WriteLine($"Username: '{username}', Password: '{password}'");
-        Console.WriteLine();
+        Log.Write("Username: ", LogFormat.Bold);
+        Log.Write(username, LogFormat.BrightMagenta);
+        Log.Write(", ");
+        Log.Write("Password: ", LogFormat.Bold);
+        Log.Write('('); Log.Write(password, LogFormat.Conceal); Log.Write(')');
+        Log.WriteLine();
+        Log.WriteLine();
 
         // Parse remote config
         LoginInfo remoteLoginInfo = new(username, password);
         UserInfo remoteUserInfo = await remoteApiClient.PostJson<UserInfo, LoginInfo>("login", remoteLoginInfo);
         if (remoteUserInfo != null)
         {
-            Console.WriteLine($"Login successful: '{remoteUserInfo.UserName}' (Account ID: {remoteUserInfo.AccountId})");
+            Log.WriteLine("Remote login successful", LogFormat.Italic, LogFormat.BrightGreen);
+            Log.Write("Username: ", LogFormat.Bold);
+            Log.Write(remoteUserInfo.UserName, LogFormat.BrightMagenta);
+            Log.Write(", ");
+            Log.Write("Account ID: ", LogFormat.Bold);
+            Log.Write(remoteUserInfo.AccountId);
+            Log.WriteLine();
             // Set client token
             remoteApiClient.SetToken(remoteUserInfo.Token);
 
@@ -162,18 +179,18 @@ public class MessageService : ServiceBase
         }
         else
         {
-            Console.Error.WriteLine("Remote login error");
+            Log.WriteErrorLine("Remote login error");
         }
 
         if (remoteConfig != null)
         {
             // Successfully obtained remote config
-            Console.WriteLine("Remote config obtained");
+            Log.WriteLine("Remote config obtained", LogFormat.Italic);
         }
         else
         {
             // Use empty config if no config exists
-            Console.WriteLine("Could not find remote config, using default values");
+            Log.WriteLine("Could not find remote config, using default values", LogFormat.Italic, LogFormat.Yellow);
             remoteConfig = new MessageServiceConfigModel();
         }
 
@@ -208,13 +225,17 @@ public class MessageService : ServiceBase
         if (remoteConfig.FhtWebApiEndpoint != null)
         {
             localApiEndpoint = remoteConfig.FhtWebApiEndpoint;
-            Console.WriteLine($"Using local API endpoint from config: {localApiEndpoint}");
+            Log.WriteLine("Using local API endpoint from config", LogFormat.Italic);
         }
         else
         {
             localApiEndpoint = GetLocalApiEndpoint();
-            Console.WriteLine($"Obtained local API endpoint from UDP: {localApiEndpoint}");
+            Log.WriteLine("Obtained local API endpoint from UDP", LogFormat.Italic);
         }
+
+        Log.Write("Local FHT API endpoint: ", LogFormat.Bold);
+        Log.WriteLine(localApiEndpoint, LogFormat.BrightCyan);
+        Log.WriteLine();
 
         // Create local API client
         ApiClient localApiClient = new(localApiEndpoint);
@@ -225,7 +246,7 @@ public class MessageService : ServiceBase
         // Iterate through each message
         if (messageModels != null && messageModels.Length > 0)
         {
-            Console.WriteLine($"{messageModels.Length} {(messageModels.Length == 1 ? "message" : "messages")} from API");
+            Log.WriteLine($"{messageModels.Length} {(messageModels.Length == 1 ? "message" : "messages")} from API");
 
             // Get message path
             Dictionary<string, string> messageDirs = messageModels
@@ -235,15 +256,15 @@ public class MessageService : ServiceBase
             {
                 foreach (string emrSoftware in messageDirs.Keys)
                 {
-                    Console.WriteLine($"Message dir ({emrSoftware}): {messageDirs[emrSoftware]}");
+                    Log.WriteLine($"Message dir ({emrSoftware}): {messageDirs[emrSoftware]}");
                 }
             }
             else
             {
-                Console.Error.WriteLine($"Could not find message dir");
+                Log.WriteErrorLine($"Could not find message dir");
             }
 
-            Console.WriteLine();
+            Log.WriteLine();
             foreach (ResultMessageModel messageModel in messageModels)
             {
                 try
@@ -253,18 +274,20 @@ public class MessageService : ServiceBase
                     string messageFilename = HL7MessageUtil.CreateFilenameFromMessage(messageModel);
                     string messagePath = Path.Join(messageDirs[messageModel.Patient.PatientEmr], messageFilename);
                     HL7MessageUtil.WriteHL7Message(message, messagePath);
-                    Console.WriteLine($"Wrote message: {messagePath}");
+                    Log.WriteLine($"Wrote message: {messagePath}", LogFormat.Italic, LogFormat.Green);
                 }
                 catch (Exception e)
                 {
-                    Console.Error.WriteLine(e);
+                    Log.WriteErrorLine(e);
                 }
             }
         }
         else
         {
-            Console.WriteLine("No messages to write");
+            Log.WriteLine("No messages to write", LogFormat.Italic);
         }
+
+        Log.WriteLine();
     }
 
     /// <summary>
@@ -283,7 +306,7 @@ public class MessageService : ServiceBase
             udpClient.JoinMulticastGroup(groupAddress);
             IPEndPoint webApiDest = new(groupAddress, localConfig.GetValue<int>("MulticastTargetPort"));
             // Send byte
-            _ = udpClient.Send(new byte[] { 1 }, 1, webApiDest);
+            udpClient.Send(new byte[] { 1 }, 1, webApiDest);
             // Wait for response
             IPEndPoint endpoint = new(IPAddress.Any, 50);
             byte[] data = udpClient.Receive(ref endpoint);
@@ -295,7 +318,7 @@ public class MessageService : ServiceBase
         }
         catch (Exception e)
         {
-            Console.Error.WriteLine(e);
+            Log.WriteErrorLine(e);
             return null;
         }
     }
@@ -340,7 +363,7 @@ public class MessageService : ServiceBase
             return null;
         }
 
-        Console.WriteLine($"Invalid EMR software '{remoteConfig.EmrSoftware}'");
+        Log.WriteLine($"Invalid EMR software '{remoteConfig.EmrSoftware}'");
         return null;
     }
 }

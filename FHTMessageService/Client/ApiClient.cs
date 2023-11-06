@@ -1,4 +1,5 @@
-﻿using FHTMessageService.Models;
+﻿using FHTMessageService.Logging;
+using FHTMessageService.Models;
 
 using FhtSharedLibrary.SharedFunctions;
 using FhtSharedLibrary.ViewModels;
@@ -50,13 +51,13 @@ public class ApiClient
             }
             else
             {
-                Console.Error.WriteLine($"Request error: {requestUri} - {response.ReasonPhrase}");
+                Log.WriteErrorLine($"Request error: {requestUri} - {response.ReasonPhrase}");
                 return default;
             }
         }
         catch (Exception error)
         {
-            Console.Error.WriteLine($"Request error: {error}");
+            Log.WriteErrorLine($"Request error: {error}");
             return default;
         }
     }
@@ -80,13 +81,13 @@ public class ApiClient
             }
             else
             {
-                Console.Error.WriteLine($"Request error: {requestUri} - {response.ReasonPhrase}");
+                Log.WriteErrorLine($"Request error: {requestUri} - {response.ReasonPhrase}");
                 return default;
             }
         }
         catch (Exception error)
         {
-            Console.Error.WriteLine($"Request error: {error}");
+            Log.WriteErrorLine($"Request error: {error}");
             return default;
         }
     }
@@ -117,7 +118,7 @@ public class ApiClient
             }
             else
             {
-                Console.Error.WriteLine($"GetConfigInfo error: {response.StatusCode} - {response.ReasonPhrase}");
+                Log.WriteErrorLine($"GetConfigInfo error: {response.StatusCode} - {response.ReasonPhrase}");
                 return null;
             }
         }
@@ -128,7 +129,7 @@ public class ApiClient
         }
         catch (Exception error)
         {
-            Console.Error.WriteLine($"GetConfigInfo error: {error}");
+            Log.WriteErrorLine($"GetConfigInfo error: {error}");
             return null;
         }
     }
