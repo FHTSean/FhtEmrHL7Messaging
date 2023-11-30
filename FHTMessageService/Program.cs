@@ -1,8 +1,11 @@
-﻿using System.Diagnostics;
+﻿using FHTMessageService.Logging;
+
+using Microsoft.AspNetCore.Hosting.WindowsServices;
+
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.ServiceProcess;
 using System.Text;
-
-using Microsoft.Extensions.Logging;
 
 namespace FHTMessageService;
 
@@ -38,10 +41,15 @@ public class Program
         }
     }
 
+    [RequiresUnreferencedCode("Controllers may be trimmed")]
     public static void Main(string[] args)
     {
         // Setup console
         Console.SetError(new ConsoleWriter(Console.Error, ConsoleColor.Red));
+        if (args.Contains("--no-format"))
+        {
+            Log.UseFormat = false;
+        }
 
         // Setup service
         bool isService = !(Debugger.IsAttached || args.Contains("--console"));
@@ -52,17 +60,19 @@ public class Program
             Directory.SetCurrentDirectory(pathToContentRoot);
         }
 
-        // Run service
-        MessageService messageService = new();
-        if (OperatingSystem.IsWindows() && isService)
+        // Create web host
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+        builder.Services.AddControllers();
+        WebApplication app = builder.Build();
+        app.UseWebSockets();
+        app.MapControllers();
+        if (isService)
         {
-            ServiceBase.Run(messageService);
+            ServiceBase.Run(new MessagesService(app));
         }
         else
         {
-            messageService.StartMessageService();
-            Console.ReadLine();
-            messageService.StopMessageService();
+            app.Run();
         }
     }
 }

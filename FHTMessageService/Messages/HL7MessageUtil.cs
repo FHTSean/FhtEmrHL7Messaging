@@ -65,7 +65,7 @@ public static class HL7MessageUtil
         Segment patientSegment = new("PID", encoding);
         patientSegment.AddEmptyField(); // Set ID
         patientSegment.AddEmptyField(); // Patient ID
-        patientSegment.AddNewField(messageModel.Patient.PatientId ?? ""); // Patient identifier list
+        patientSegment.AddNewField(messageModel.Patient.PatientId.ToString()); // Patient identifier list
         patientSegment.AddEmptyField(); // Alternate patient ID
         Field patientNameField = new(encoding);
         patientNameField.AddNewComponent(new Component(messageModel.Patient.PatientFamilyName ?? "", encoding));

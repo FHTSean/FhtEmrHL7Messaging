@@ -2,21 +2,29 @@
 
 public static class Log
 {
+    public static bool UseFormat { get; set; } = true;
+
     private const string AnsiEsc = "\u001b[";
     private const char AnsiSep = ';';
     private const char AnsiSgr = 'm';
 
     public static void WriteStream(TextWriter stream, object line, params LogFormat[] format)
     {
-        stream.Write(AnsiEsc);
-        IEnumerable<int> formatCodes = format.Select(x => (int)x);
-        stream.Write(string.Join(AnsiSep, formatCodes));
-        stream.Write(AnsiSgr);
+        if (UseFormat)
+        {
+            stream.Write(AnsiEsc);
+            IEnumerable<int> formatCodes = format.Select(x => (int)x);
+            stream.Write(string.Join(AnsiSep, formatCodes));
+            stream.Write(AnsiSgr);
+        }
 
         stream.Write(line);
 
-        stream.Write(AnsiEsc);
-        stream.Write(AnsiSgr);
+        if (UseFormat)
+        {
+            stream.Write(AnsiEsc);
+            stream.Write(AnsiSgr);
+        }
     }
 
     public static void WriteStreamLine(TextWriter stream)
