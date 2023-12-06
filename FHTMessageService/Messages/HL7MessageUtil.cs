@@ -105,7 +105,11 @@ public static class HL7MessageUtil
         observationRequestSegment.AddEmptyField(); // Set ID
         observationRequestSegment.AddEmptyField(); // Placer order number
         observationRequestSegment.AddEmptyField(); // Filler order number
-        observationRequestSegment.AddEmptyField(); // Universal service identifier
+        Field observationRequestIndentifierField = new(encoding);
+        observationRequestIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifier ?? "", encoding)); // Observation identifier
+        observationRequestIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifierText ?? "", encoding)); // Observation identifier text
+        observationRequestIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationCodingSystem.ToHL7CodingSystem(), encoding)); // Name of coding system - Local general code
+        observationRequestSegment.AddNewField(observationRequestIndentifierField); // Observation identifier
         observationRequestSegment.AddEmptyField(); // Priority
         observationRequestSegment.AddEmptyField(); // Requested date/time
         observationRequestSegment.AddNewField(MessageHelper.LongDateWithFractionOfSecond(messageModel.Observation.ObservationDateTime)); // Observation date/time
