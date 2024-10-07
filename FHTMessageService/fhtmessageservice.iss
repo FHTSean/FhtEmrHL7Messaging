@@ -57,8 +57,8 @@ end;
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "C:\FHTdeploy\FHTMessageService\FHTMessageService.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\FHTdeploy\FHTMessageService\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "C:\Users\jalau\Documents\Development\FHT\Deploy\FHTMessageService\FHTMessageService.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\jalau\Documents\Development\FHT\Deploy\FHTMessageService\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [run]
 Filename: {sys}\sc.exe; Parameters: "create FHTMessageService displayname= ""FHT Message Service"" start= delayed-auto binPath= ""{app}\FHTMessageService.exe""" ; Flags: runhidden

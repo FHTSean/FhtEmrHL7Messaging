@@ -6,6 +6,8 @@ using HL7.Dotnetcore;
 
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Text;
+using System.Xml.Linq;
 
 namespace FHTMessageService.Messages;
 
@@ -20,7 +22,7 @@ public static class HL7MessageUtil
     public const string MessageTypeCode = "ORU";
     public const string MessageTypeTriggerEvent = "R01";
     public const string MessageControlId = "0000000";
-    public const string MessageVersionId = "2.5.1";
+    public const string MessageVersionId = "2.8.1";
     public const string MessageCountryCode = "AU";
     public const string MessageCharacterSet = "UNICODE UTF-8";
 
@@ -87,15 +89,22 @@ public static class HL7MessageUtil
         patientVisitSegment.AddEmptyField(); // Admission type
         patientVisitSegment.AddEmptyField(); // Preadmit number
         patientVisitSegment.AddEmptyField(); // Prior patient location
-        Field doctorNameField = new(encoding);
-        DoctorName doctorName = ParseDoctorName(messageModel.PatientVisit.PatientVisitDoctor);
-        doctorNameField.AddNewComponent(new Component(encoding)); // ID number
-        doctorNameField.AddNewComponent(new Component(doctorName.FamilyName, encoding)); // Family name
-        doctorNameField.AddNewComponent(new Component(doctorName.GivenName, encoding)); // Given name
-        doctorNameField.AddNewComponent(new Component(doctorName.OtherNames, encoding)); // Further given names
-        doctorNameField.AddNewComponent(new Component(encoding)); // Suffix
-        doctorNameField.AddNewComponent(new Component(doctorName.Prefix, encoding)); // Prefix
-        patientVisitSegment.AddNewField(doctorNameField); // Attending doctor
+        if (!string.IsNullOrEmpty(messageModel.PatientVisit.PatientVisitDoctor))
+        {
+            Field doctorNameField = new(encoding);
+            DoctorName doctorName = ParseDoctorName(messageModel.PatientVisit.PatientVisitDoctor);
+            doctorNameField.AddNewComponent(new Component(encoding)); // ID number
+            doctorNameField.AddNewComponent(new Component(doctorName.FamilyName, encoding)); // Family name
+            doctorNameField.AddNewComponent(new Component(doctorName.GivenName, encoding)); // Given name
+            doctorNameField.AddNewComponent(new Component(doctorName.OtherNames, encoding)); // Further given names
+            doctorNameField.AddNewComponent(new Component(encoding)); // Suffix
+            doctorNameField.AddNewComponent(new Component(doctorName.Prefix, encoding)); // Prefix
+            patientVisitSegment.AddNewField(doctorNameField); // Attending doctor
+        }
+        else
+        {
+            patientVisitSegment.AddEmptyField(); // Attending doctor
+        }
         patientVisitSegment.AddEmptyField(); // Referring doctor
         patientVisitSegment.AddEmptyField(); // Consulting doctor
         message.AddNewSegment(patientVisitSegment);
@@ -160,6 +169,24 @@ public static class HL7MessageUtil
         observationResultSegment.AddNewField(currentDateTime); // Date/time of analysis
         message.AddNewSegment(observationResultSegment);
 
+        // Add formatted text
+        Segment formattedTextSegment = new("OBX", encoding);
+        formattedTextSegment.AddEmptyField(); // Set ID
+        formattedTextSegment.AddNewField("FT"); // Value type - Formatted text
+        formattedTextSegment.AddNewField("DS"); // Observation identifier
+        formattedTextSegment.AddEmptyField(); // Observation sub-identifier
+        formattedTextSegment.AddNewField(messageModel.FormattedText ?? ""); // Observation value
+        formattedTextSegment.AddEmptyField(); // Units
+        formattedTextSegment.AddEmptyField(); // References range
+        formattedTextSegment.AddEmptyField(); // Abnormal flags
+        formattedTextSegment.AddEmptyField(); // Probability
+        formattedTextSegment.AddEmptyField(); // Nature of abnormal test
+        formattedTextSegment.AddNewField("F"); // Observation result status - Final results
+        formattedTextSegment.AddEmptyField(); // Effective date of reference range values
+        formattedTextSegment.AddEmptyField(); // User defined access checks
+        formattedTextSegment.AddNewField(currentDateTime); // Date/time of the observation
+        message.AddNewSegment(formattedTextSegment);
+
         // Add clinical trial identification
         Segment clinicalTrialIdentificationSegment = new("CTI", encoding);
         clinicalTrialIdentificationSegment.AddNewField(messageModel.ClinicalTrial.StudyIdentifier ?? ""); // Sponser study ID
@@ -174,6 +201,8 @@ public static class HL7MessageUtil
 
     private static DoctorName ParseDoctorName(string name)
     {
+        ArgumentNullException.ThrowIfNull(name);
+
         string prefix = "";
         string givenName = "";
         string otherNames = "";
@@ -218,6 +247,28 @@ public static class HL7MessageUtil
     }
 
     /// <summary>
+    /// Convert special characters to display correctly in MD.
+    /// </summary>
+    /// <param name="text">The input text to convert.</param>
+    /// <returns>The <paramref name="text"/> converted to display in MD.</returns>
+    public static string MedicalDirectorTextConversion(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        StringBuilder textBuilder = new();
+        foreach (char c in text)
+        {
+            // Convert 8-bit characters to MD format
+            if (c >= 0b10000000)
+                textBuilder.Append($"\\'{Convert.ToByte(c).ToString("x2").ToLowerInvariant()}");
+            else
+                textBuilder.Append(c);
+        }
+
+        return textBuilder.ToString();
+    }
+
+    /// <summary>
     /// Get a unique filename from an FHT message model.
     /// </summary>
     public static string CreateFilenameFromMessage(ResultMessageModel messageModel)
@@ -232,10 +283,17 @@ public static class HL7MessageUtil
     /// </summary>
     /// <param name="message">The message to write to a file.</param>
     /// <param name="messagePath">The filepath for the HL7 file.</param>
-    public static void WriteHL7Message(Message message, string messagePath)
+    public static void WriteHL7Message(Message message, string messagePath, string messageEmr)
     {
         // Create HL7 message
-        string hl7Message = message.SerializeMessage(false);
+        string serializedMessage = message.SerializeMessage(false);
+        // Format HL7 message
+        string formattedText;
+        if (messageEmr == "MedicalDirector")
+            formattedText = MedicalDirectorTextConversion(serializedMessage);
+        else
+            formattedText = serializedMessage;
+
         // Check dir
         string messageDir = Path.GetDirectoryName(messagePath);
         if (!Directory.Exists(messageDir))
@@ -244,7 +302,8 @@ public static class HL7MessageUtil
         }
 
         // Write file
-        using StreamWriter messageWriter = new(messagePath);
-        messageWriter.Write(hl7Message);
+        using FileStream fileStream = new(messagePath, FileMode.Create);
+        using StreamWriter messageWriter = new(fileStream, Encoding.Latin1);
+        messageWriter.Write(formattedText);
     }
 }

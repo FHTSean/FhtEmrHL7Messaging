@@ -201,7 +201,7 @@ public class MessagesController : ControllerBase
                     Message message = HL7MessageUtil.CreateHL7Message(messageModel);
                     string messageFilename = HL7MessageUtil.CreateFilenameFromMessage(messageModel);
                     string messagePath = Path.Join(messageDirs[messageModel.Patient.PatientEmr], messageFilename);
-                    HL7MessageUtil.WriteHL7Message(message, messagePath);
+                    HL7MessageUtil.WriteHL7Message(message, messagePath, messageModel.Patient.PatientEmr);
                     Log.WriteLine(messagePath);
                     ++wroteMessages;
                 }
@@ -233,7 +233,7 @@ public class MessagesController : ControllerBase
     /// <summary>
     /// Get the message directory from the EMR database.
     /// </summary>
-    private string GetMessageDir(string emrSoftware, string connectionString)
+    public static string GetMessageDir(string emrSoftware, string connectionString)
     {
         try
         {
