@@ -25,6 +25,8 @@ namespace FHTMessageService;
 [ApiController]
 public class MessagesController : ControllerBase
 {
+    private const int TimeoutMilliseconds = 30000;
+
     [Route("ResultMessages")]
     public async Task Get()
     {
@@ -44,37 +46,52 @@ public class MessagesController : ControllerBase
         StringBuilder resultBuilder = new();
         bool isClosed = false;
 
-        while (!isClosed)
+        try
         {
-            byte[] buffer = new byte[1024 * 4];
-            WebSocketReceiveResult receiveResult = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-            if (receiveResult.MessageType == WebSocketMessageType.Close)
+            while (!isClosed)
             {
-                isClosed = true;
-                break;
-            }
-            else if (receiveResult.MessageType != WebSocketMessageType.Text)
-            {
-                await webSocket.CloseAsync(WebSocketCloseStatus.InvalidMessageType, null, CancellationToken.None);
-                break;
+                byte[] buffer = new byte[1024 * 4];
+                WebSocketReceiveResult receiveResult = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), new CancellationTokenSource(TimeoutMilliseconds).Token);
+                if (receiveResult.MessageType == WebSocketMessageType.Close)
+                {
+                    isClosed = true;
+                    break;
+                }
+                else if (receiveResult.MessageType != WebSocketMessageType.Text)
+                {
+                    await webSocket.CloseAsync(WebSocketCloseStatus.InvalidMessageType, null, new CancellationTokenSource(TimeoutMilliseconds).Token);
+                    break;
+                }
+
+                resultBuilder.Append(Encoding.UTF8.GetString(buffer));
+                if (receiveResult.EndOfMessage)
+                {
+                    // Get result
+                    string result = resultBuilder.ToString();
+                    resultBuilder.Clear();
+                    // Parse and save result
+                    ResultMessageModel[] resultMessageModels = JsonSerializer.Deserialize<ResultMessageModel[]>(result.Trim('\0'));
+                    await SaveResultMessages(resultMessageModels, webSocket);
+                }
             }
 
-            resultBuilder.Append(Encoding.UTF8.GetString(buffer));
-            if (receiveResult.EndOfMessage)
-            {
-                // Get result
-                string result = resultBuilder.ToString();
-                resultBuilder.Clear();
-                // Parse and save result
-                ResultMessageModel[] resultMessageModels = JsonSerializer.Deserialize<ResultMessageModel[]>(result.Trim('\0'));
-                await SaveResultMessages(resultMessageModels);
-            }
+            await webSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, new CancellationTokenSource(TimeoutMilliseconds).Token);
         }
-
-        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+        catch (Exception e)
+        {
+            // Send error over socket
+            await LogWebsocketMessage(webSocket, e.ToString());
+            await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, null, new CancellationTokenSource(TimeoutMilliseconds).Token);
+        }
     }
 
-    private async Task SaveResultMessages(ResultMessageModel[] resultMessageModels)
+    private async Task LogWebsocketMessage(WebSocket webSocket, string value)
+    {
+        byte[] messageBytes = Encoding.UTF8.GetBytes(value);
+        await webSocket.SendAsync(messageBytes, WebSocketMessageType.Text, true, new CancellationTokenSource(TimeoutMilliseconds).Token);
+    }
+
+    private async Task SaveResultMessages(ResultMessageModel[] resultMessageModels, WebSocket webSocket)
     {
         if (resultMessageModels is null)
         {
@@ -181,11 +198,14 @@ public class MessagesController : ControllerBase
                 {
                     Log.Write($"{emrSoftware} - Message dir: ", LogFormat.Bold);
                     Log.WriteLine(messageDirs[emrSoftware]);
+                    await LogWebsocketMessage(webSocket, $"EMR: '{emrSoftware}' - Message dir: '{messageDirs[emrSoftware]}'");
                 }
             }
             else
             {
                 Log.WriteErrorLine("Could not find message dir");
+                await LogWebsocketMessage(webSocket, "Could not find message dir");
+                throw new Exception("Could not find message dir");
             }
 
             Log.WriteLine();
