@@ -11,7 +11,6 @@ using HL7.Dotnetcore;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 using System.Net.WebSockets;
 using System.Text;
@@ -191,7 +190,8 @@ public class MessagesController : ControllerBase
             // Get message path
             Dictionary<string, string> messageDirs = messageModels
                 .Select(x => x.Patient.PatientEmr).Distinct()
-                .ToDictionary(x => x, y => GetMessageDir(y, emrConnectionStrings[y]));
+                // .ToDictionary(x => x, y => GetMessageDir(y, emrConnectionStrings[y]));
+                .ToDictionary(x => x, y => GetMessageDir());
             if (messageDirs.Count != 0)
             {
                 foreach (string emrSoftware in messageDirs.Keys)
@@ -204,7 +204,6 @@ public class MessagesController : ControllerBase
             else
             {
                 Log.WriteErrorLine("Could not find message dir");
-                await LogWebsocketMessage(webSocket, "Could not find message dir");
                 throw new Exception("Could not find message dir");
             }
 
@@ -250,51 +249,54 @@ public class MessagesController : ControllerBase
         Log.WriteLine();
     }
 
+    public static string GetMessageDir()
+    {
+        return "C:\\Program Files\\fht\\FHTMessageService\\HL7Reports";
+    }
+
     /// <summary>
     /// Get the message directory from the EMR database.
     /// </summary>
     public static string GetMessageDir(string emrSoftware, string connectionString)
     {
-        try
+        if (emrSoftware == "BestPractice")
         {
-            if (emrSoftware == "BestPractice")
+            DbContextOptionsBuilder<Bps.BPSPatientsContext> optionsBuilder = new();
+            optionsBuilder.UseSqlServer(connectionString);
+            using Bps.BPSPatientsContext fhtBpsContext = new(optionsBuilder.Options);
+            // Get import path for BP
+            Bps.Reportpaths[] reportPaths = fhtBpsContext.Reportpaths
+                .AsEnumerable()
+                .OrderBy(x => x.Recordid)
+                .Where(x => x.Recordstatus == 1 && x.Computer.Trim().Equals(Environment.MachineName.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            foreach (Bps.Reportpaths path in reportPaths)
             {
-                DbContextOptionsBuilder<Bps.BPSPatientsContext> optionsBuilder = new();
-                optionsBuilder.UseSqlServer(connectionString);
-                using Bps.BPSPatientsContext fhtBpsContext = new(optionsBuilder.Options);
-                // Get import path for BP
-                Bps.Reportpaths[] reportPaths = [.. fhtBpsContext.Reportpaths.AsEnumerable()
-                    .Where(x => x.Recordstatus == 1 && x.Computer.Trim().Equals(Environment.MachineName.Trim(), StringComparison.OrdinalIgnoreCase))];
-                if (reportPaths.Length > 0)
-                {
-                    return reportPaths.First().Reportpath;
-                }
-
-                Log.WriteLine($"No matching report paths found for machine '{Environment.MachineName}'");
-                return null;
-            }
-            else if (emrSoftware == "MedicalDirector")
-            {
-                DbContextOptionsBuilder<MdPath.HCN.HCNContext> optionsBuilder = new();
-                optionsBuilder.UseSqlServer(connectionString);
-                using MdPath.HCN.HCNContext fhtMdContext = new(optionsBuilder.Options);
-                // Get import path for MD
-                MdPath.HCN.MdUpdownConfig[] reportPaths = [.. fhtMdContext.MdUpdownConfig.Where(x => x.Enabled == "Y" && x.SdiEnabled == "Y" && x.StampActionCode != "D")];
-                if (reportPaths.Length > 0)
-                {
-                    return reportPaths.First().ImportDirectory;
-                }
-
-                return null;
+                Log.WriteLine(path.ToString());
             }
 
-            Log.WriteErrorLine($"Invalid EMR software '{emrSoftware}'");
-            return null;
+            if (reportPaths.Length > 0)
+            {
+                return reportPaths.First().Reportpath;
+            }
+
+            throw new Exception($"No matching report paths found for machine '{Environment.MachineName}'");
         }
-        catch (Exception e)
+        else if (emrSoftware == "MedicalDirector")
         {
-            Log.WriteErrorLine(e);
-            return null;
+            DbContextOptionsBuilder<MdPath.HCN.HCNContext> optionsBuilder = new();
+            optionsBuilder.UseSqlServer(connectionString);
+            using MdPath.HCN.HCNContext fhtMdContext = new(optionsBuilder.Options);
+            // Get import path for MD
+            MdPath.HCN.MdUpdownConfig[] reportPaths = [.. fhtMdContext.MdUpdownConfig.Where(x => x.Enabled == "Y" && x.SdiEnabled == "Y" && x.StampActionCode != "D")];
+            if (reportPaths.Length > 0)
+            {
+                return reportPaths.First().ImportDirectory;
+            }
+
+            throw new Exception($"No matching report paths found for machine '{Environment.MachineName}'");
         }
+
+        throw new ArgumentException($"Invalid EMR software '{emrSoftware}'", nameof(emrSoftware));
     }
 }
