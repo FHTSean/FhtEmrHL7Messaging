@@ -143,49 +143,86 @@ public static class HL7MessageUtil
         message.AddNewSegment(observationRequestSegment);
 
         // Add observation result
-        Segment observationResultSegment = new("OBX", encoding);
-        observationResultSegment.AddEmptyField(); // Set ID
-        observationResultSegment.AddNewField("NM"); // Value type - Numeric
-        Field observationIndentifierField = new(encoding);
-        observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifier ?? "", encoding)); // Observation identifier
-        observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifierText ?? "", encoding)); // Observation identifier text
-        observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationCodingSystem.ToHL7CodingSystem(), encoding)); // Name of coding system - Local general code
-        observationResultSegment.AddNewField(observationIndentifierField); // Observation identifier
-        observationResultSegment.AddEmptyField(); // Observation sub-identifier
-        observationResultSegment.AddNewField(messageModel.Observation.ObservationValue ?? ""); // Observation value
-        observationResultSegment.AddNewField(messageModel.Observation.ObservationUnits ?? ""); // Units
-        observationResultSegment.AddNewField(messageModel.Observation.ObservationReferencesRange ?? ""); // References range
-        observationResultSegment.AddNewField(messageModel.Observation.ObservationAbnormalFlags ?? ""); // Abnormal flags
-        observationResultSegment.AddEmptyField(); // Probability
-        observationResultSegment.AddEmptyField(); // Nature of abnormal test
-        observationResultSegment.AddNewField("F"); // Observation result status - Final results
-        observationResultSegment.AddEmptyField(); // Effective date of reference range values
-        observationResultSegment.AddEmptyField(); // User defined access checks
-        observationResultSegment.AddNewField(currentDateTime); // Date/time of the observation
-        observationResultSegment.AddEmptyField(); // Producer's reference
-        observationResultSegment.AddEmptyField(); // Responsible observer
-        observationResultSegment.AddNewField(SoftwareProductName); // Observation method
-        observationResultSegment.AddEmptyField(); // Equipment instance identifier
-        observationResultSegment.AddNewField(currentDateTime); // Date/time of analysis
-        message.AddNewSegment(observationResultSegment);
+        if (messageModel.Observation.ObservationValue != null)
+        {
+            Segment observationResultSegment = new("OBX", encoding);
+            observationResultSegment.AddEmptyField(); // Set ID
+            observationResultSegment.AddNewField("NM"); // Value type - Numeric
+            Field observationIndentifierField = new(encoding);
+            observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifier ?? "", encoding)); // Observation identifier
+            observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationIdentifierText ?? "", encoding)); // Observation identifier text
+            observationIndentifierField.AddNewComponent(new Component(messageModel.Observation.ObservationCodingSystem.ToHL7CodingSystem(), encoding)); // Name of coding system - Local general code
+            observationResultSegment.AddNewField(observationIndentifierField); // Observation identifier
+            observationResultSegment.AddEmptyField(); // Observation sub-identifier
+            observationResultSegment.AddNewField(messageModel.Observation.ObservationValue ?? ""); // Observation value
+            observationResultSegment.AddNewField(messageModel.Observation.ObservationUnits ?? ""); // Units
+            observationResultSegment.AddNewField(messageModel.Observation.ObservationReferencesRange ?? ""); // References range
+            observationResultSegment.AddNewField(messageModel.Observation.ObservationAbnormalFlags ?? ""); // Abnormal flags
+            observationResultSegment.AddEmptyField(); // Probability
+            observationResultSegment.AddEmptyField(); // Nature of abnormal test
+            observationResultSegment.AddNewField("F"); // Observation result status - Final results
+            observationResultSegment.AddEmptyField(); // Effective date of reference range values
+            observationResultSegment.AddEmptyField(); // User defined access checks
+            observationResultSegment.AddNewField(currentDateTime); // Date/time of the observation
+            observationResultSegment.AddEmptyField(); // Producer's reference
+            observationResultSegment.AddEmptyField(); // Responsible observer
+            observationResultSegment.AddNewField(SoftwareProductName); // Observation method
+            observationResultSegment.AddEmptyField(); // Equipment instance identifier
+            observationResultSegment.AddNewField(currentDateTime); // Date/time of analysis
+            message.AddNewSegment(observationResultSegment);
+        }
 
-        // Add formatted text
-        Segment formattedTextSegment = new("OBX", encoding);
-        formattedTextSegment.AddEmptyField(); // Set ID
-        formattedTextSegment.AddNewField("FT"); // Value type - Formatted text
-        formattedTextSegment.AddNewField("DS"); // Observation identifier
-        formattedTextSegment.AddEmptyField(); // Observation sub-identifier
-        formattedTextSegment.AddNewField(messageModel.FormattedText ?? ""); // Observation value
-        formattedTextSegment.AddEmptyField(); // Units
-        formattedTextSegment.AddEmptyField(); // References range
-        formattedTextSegment.AddEmptyField(); // Abnormal flags
-        formattedTextSegment.AddEmptyField(); // Probability
-        formattedTextSegment.AddEmptyField(); // Nature of abnormal test
-        formattedTextSegment.AddNewField("F"); // Observation result status - Final results
-        formattedTextSegment.AddEmptyField(); // Effective date of reference range values
-        formattedTextSegment.AddEmptyField(); // User defined access checks
-        formattedTextSegment.AddNewField(currentDateTime); // Date/time of the observation
-        message.AddNewSegment(formattedTextSegment);
+        // Add content
+        if (messageModel.FormattedTextIsPdf)
+        {
+            // Add PDF
+            Segment formattedTextSegment = new("OBX", encoding);
+            formattedTextSegment.AddEmptyField(); // Set ID
+            formattedTextSegment.AddNewField("ED"); // Value type - Formatted text
+            Field observationIndentifierField = new(encoding);
+            observationIndentifierField.AddNewComponent(new Component("PDF", encoding)); // Observation identifier
+            observationIndentifierField.AddNewComponent(new Component(encoding)); // Observation identifier text
+            observationIndentifierField.AddNewComponent(new Component("AUSPDI", encoding)); // Name of coding system - Australian PDF encoding
+            formattedTextSegment.AddNewField(observationIndentifierField); // Observation identifier
+            formattedTextSegment.AddEmptyField(); // Observation sub-identifier
+            Field observationValueField = new(encoding);
+            observationValueField.AddNewComponent(new Component(encoding)); // Observation value 5.1
+            observationValueField.AddNewComponent(new Component("application", encoding)); // Observation value 5.2
+            observationValueField.AddNewComponent(new Component("pdf", encoding)); // Observation value type
+            observationValueField.AddNewComponent(new Component("Base64", encoding)); // Observation value encoding
+            observationValueField.AddNewComponent(new Component(messageModel.FormattedText ?? "", encoding)); // Observation value content
+            formattedTextSegment.AddNewField(observationValueField); // Observation value
+            formattedTextSegment.AddEmptyField(); // Units
+            formattedTextSegment.AddEmptyField(); // References range
+            formattedTextSegment.AddEmptyField(); // Abnormal flags
+            formattedTextSegment.AddEmptyField(); // Probability
+            formattedTextSegment.AddEmptyField(); // Nature of abnormal test
+            formattedTextSegment.AddNewField("F"); // Observation result status - Final results
+            formattedTextSegment.AddEmptyField(); // Effective date of reference range values
+            formattedTextSegment.AddEmptyField(); // User defined access checks
+            formattedTextSegment.AddNewField(currentDateTime); // Date/time of the observation
+            message.AddNewSegment(formattedTextSegment);
+        }
+        else
+        {
+            // Add formatted text
+            Segment formattedTextSegment = new("OBX", encoding);
+            formattedTextSegment.AddEmptyField(); // Set ID
+            formattedTextSegment.AddNewField("FT"); // Value type - Formatted text
+            formattedTextSegment.AddNewField("DS"); // Observation identifier
+            formattedTextSegment.AddEmptyField(); // Observation sub-identifier
+            formattedTextSegment.AddNewField(messageModel.FormattedText ?? ""); // Observation value
+            formattedTextSegment.AddEmptyField(); // Units
+            formattedTextSegment.AddEmptyField(); // References range
+            formattedTextSegment.AddEmptyField(); // Abnormal flags
+            formattedTextSegment.AddEmptyField(); // Probability
+            formattedTextSegment.AddEmptyField(); // Nature of abnormal test
+            formattedTextSegment.AddNewField("F"); // Observation result status - Final results
+            formattedTextSegment.AddEmptyField(); // Effective date of reference range values
+            formattedTextSegment.AddEmptyField(); // User defined access checks
+            formattedTextSegment.AddNewField(currentDateTime); // Date/time of the observation
+            message.AddNewSegment(formattedTextSegment);
+        }
 
         // Add clinical trial identification
         Segment clinicalTrialIdentificationSegment = new("CTI", encoding);
@@ -273,7 +310,7 @@ public static class HL7MessageUtil
     /// </summary>
     public static string CreateFilenameFromMessage(ResultMessageModel messageModel)
     {
-        return $"{FilenamePrefix}_{messageModel.Patient.PatientId}_{messageModel.Observation.ObservationIdentifierText}_{DateTime.Now.Ticks}.hl7"
+        return $"{FilenamePrefix}_{messageModel.Patient.PatientId}_{Path.GetRandomFileName().Replace(".", "")}.hl7"
             .Replace(" ", "")
             .ToLower();
     }

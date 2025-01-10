@@ -191,7 +191,7 @@ public class MessagesController : ControllerBase
             Dictionary<string, string> messageDirs = messageModels
                 .Select(x => x.Patient.PatientEmr).Distinct()
                 // .ToDictionary(x => x, y => GetMessageDir(y, emrConnectionStrings[y]));
-                .ToDictionary(x => x, y => GetMessageDir());
+                .ToDictionary(x => x, y => remoteConfig.MessageOutputDir ?? GetMessageDir());
             if (messageDirs.Count != 0)
             {
                 foreach (string emrSoftware in messageDirs.Keys)
