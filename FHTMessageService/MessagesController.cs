@@ -84,7 +84,7 @@ public class MessagesController : ControllerBase
         }
     }
 
-    private async Task LogWebsocketMessage(WebSocket webSocket, string value)
+    private static async Task LogWebsocketMessage(WebSocket webSocket, string value)
     {
         byte[] messageBytes = Encoding.UTF8.GetBytes(value);
         await webSocket.SendAsync(messageBytes, WebSocketMessageType.Text, true, new CancellationTokenSource(TimeoutMilliseconds).Token);

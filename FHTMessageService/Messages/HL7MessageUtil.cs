@@ -121,7 +121,7 @@ public static class HL7MessageUtil
         observationRequestSegment.AddNewField(observationRequestIndentifierField); // Observation identifier
         observationRequestSegment.AddEmptyField(); // Priority
         observationRequestSegment.AddEmptyField(); // Requested date/time
-        observationRequestSegment.AddNewField(MessageHelper.LongDateWithFractionOfSecond(messageModel.Observation.ObservationDateTime)); // Observation date/time
+        observationRequestSegment.AddNewField(MessageHelper.LongDateWithFractionOfSecond(messageModel.Observation.ObservationDateTime ?? DateTime.Now)); // Observation date/time
         observationRequestSegment.AddEmptyField(); // Observation end date/time
         observationRequestSegment.AddEmptyField(); // Collection volume
         observationRequestSegment.AddEmptyField(); // Collector identifier
