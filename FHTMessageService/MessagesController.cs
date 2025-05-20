@@ -90,12 +90,9 @@ public class MessagesController : ControllerBase
         await webSocket.SendAsync(messageBytes, WebSocketMessageType.Text, true, new CancellationTokenSource(TimeoutMilliseconds).Token);
     }
 
-    private async Task SaveResultMessages(ResultMessageModel[] resultMessageModels, WebSocket webSocket)
+    private static async Task SaveResultMessages(ResultMessageModel[] resultMessageModels, WebSocket webSocket)
     {
-        if (resultMessageModels is null)
-        {
-            throw new ArgumentNullException(nameof(resultMessageModels));
-        }
+        ArgumentNullException.ThrowIfNull(resultMessageModels);
 
         Log.WriteLine("Result messages received", LogFormat.Bold, LogFormat.Italic);
         Log.WriteLine($"Saving {resultMessageModels.Length} result messages");
@@ -211,6 +208,7 @@ public class MessagesController : ControllerBase
             Log.WriteLine($"{messageModels.Length} {(messageModels.Length == 1 ? "message" : "messages")} from API");
 
             int wroteMessages = 0;
+            int wroteSilentMessages = 0;
             int failedMessages = 0;
             foreach (ResultMessageModel messageModel in messageModels)
             {
@@ -220,9 +218,17 @@ public class MessagesController : ControllerBase
                     Message message = HL7MessageUtil.CreateHL7Message(messageModel);
                     string messageFilename = HL7MessageUtil.CreateFilenameFromMessage(messageModel);
                     string messagePath = Path.Join(messageDirs[messageModel.Patient.PatientEmr], messageFilename);
-                    HL7MessageUtil.WriteHL7Message(message, messagePath, messageModel.Patient.PatientEmr);
-                    Log.WriteLine(messagePath);
-                    ++wroteMessages;
+                    if (!messageModel.IsSilent)
+                    {
+                        HL7MessageUtil.WriteHL7Message(message, messagePath, messageModel.Patient.PatientEmr);
+                        Log.WriteLine(messagePath);
+                        ++wroteMessages;
+                    }
+                    else
+                    {
+                        Log.WriteLine($"{messagePath} (Silent)");
+                        ++wroteSilentMessages;
+                    }
                 }
                 catch (Exception e)
                 {
@@ -233,7 +239,16 @@ public class MessagesController : ControllerBase
 
             if (wroteMessages > 0)
             {
-                Log.WriteLine($"Successfully wrote {wroteMessages} {(wroteMessages == 1 ? "message" : "messages")}", LogFormat.BrightGreen);
+                string message = $"Successfully wrote {wroteMessages} {(wroteMessages == 1 ? "message" : "messages")}";
+                Log.WriteLine(message, LogFormat.BrightGreen);
+                await LogWebsocketMessage(webSocket, message);
+            }
+
+            if (wroteSilentMessages > 0)
+            {
+                string message = $"Successfully wrote {wroteSilentMessages} silent {(wroteSilentMessages == 1 ? "message" : "messages")}";
+                Log.WriteLine(message, LogFormat.Green);
+                await LogWebsocketMessage(webSocket, message);
             }
 
             if (failedMessages > 0)

@@ -66,6 +66,18 @@ public class Program
         IConfigurationRoot localConfig = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build();
         CreateFHTFirewallRule(localConfig.GetValue<int>("Port"));
 
+        // Create default HL7 folder for FHT
+        string messageDir = MessagesController.GetMessageDir();
+        try
+        {
+            if (!Directory.Exists(messageDir))
+                Directory.CreateDirectory(messageDir);
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine(e);
+        }
+
         // Create web host
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
         builder.Services.AddControllers();
