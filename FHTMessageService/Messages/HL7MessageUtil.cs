@@ -100,12 +100,13 @@ public static class HL7MessageUtil
             doctorNameField.AddNewComponent(new Component(encoding)); // Suffix
             doctorNameField.AddNewComponent(new Component(doctorName.Prefix, encoding)); // Prefix
             patientVisitSegment.AddNewField(doctorNameField); // Attending doctor
+            patientVisitSegment.AddNewField(doctorNameField); // Referring doctor
         }
         else
         {
             patientVisitSegment.AddEmptyField(); // Attending doctor
+            patientVisitSegment.AddEmptyField(); // Referring doctor
         }
-        patientVisitSegment.AddEmptyField(); // Referring doctor
         patientVisitSegment.AddEmptyField(); // Consulting doctor
         message.AddNewSegment(patientVisitSegment);
 
